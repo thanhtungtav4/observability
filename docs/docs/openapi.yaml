@@ -1,0 +1,709 @@
+openapi: 3.1.0
+info:
+  title: Performance Observability Hub API
+  version: 0.1.0
+  summary: API contract for multi-site performance ingestion and dashboard reads
+servers:
+  - url: https://perf.example.com
+tags:
+  - name: Ingestion
+  - name: Dashboard
+paths:
+  /api/v1/collect/web-vitals:
+    post:
+      tags: [Ingestion]
+      summary: Ingest one or more field Web Vitals events
+      operationId: collectWebVitals
+      security:
+        - SiteIngestKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebVitalsCollectRequest"
+      responses:
+        "202":
+          description: Accepted for storage and aggregation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: integer
+                  rejected:
+                    type: integer
+                  ingestionBatchId:
+                    type: string
+                    format: uuid
+                required: [accepted, rejected, ingestionBatchId]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /api/v1/deployments:
+    post:
+      tags: [Ingestion]
+      summary: Register or upsert deployment metadata from CI
+      operationId: upsertDeployment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentUpsertRequest"
+      responses:
+        "201":
+          description: Deployment created or updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deployment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /api/v1/synthetic-runs:
+    post:
+      tags: [Ingestion]
+      summary: Ingest a Lighthouse or equivalent synthetic run
+      operationId: ingestSyntheticRun
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyntheticRunRequest"
+      responses:
+        "201":
+          description: Synthetic run stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyntheticRun"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /api/v1/sites:
+    get:
+      tags: [Dashboard]
+      summary: List sites visible to the current user
+      operationId: listSites
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Site list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Site"
+                required: [data]
+
+  /api/v1/dashboard/overview:
+    get:
+      tags: [Dashboard]
+      summary: Return portfolio-level health and trend slices
+      operationId: getOverview
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: environment
+          schema:
+            $ref: "#/components/schemas/Environment"
+      responses:
+        "200":
+          description: Overview payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverviewResponse"
+
+  /api/v1/sites/{siteId}/metrics:
+    get:
+      tags: [Dashboard]
+      summary: Return metric rollups for one site
+      operationId: getSiteMetrics
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: siteId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: metric
+          schema:
+            $ref: "#/components/schemas/MetricName"
+        - in: query
+          name: deviceClass
+          schema:
+            $ref: "#/components/schemas/DeviceClass"
+        - in: query
+          name: pageGroupKey
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Site metric slices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteMetricsResponse"
+
+  /api/v1/sites/{siteId}/deployments/compare:
+    get:
+      tags: [Dashboard]
+      summary: Compare two deployments or one deployment versus previous
+      operationId: compareDeployments
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: siteId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: currentDeploymentId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: baselineDeploymentId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: deviceClass
+          schema:
+            $ref: "#/components/schemas/DeviceClass"
+      responses:
+        "200":
+          description: Deployment comparison
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentCompareResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    SiteIngestKey:
+      type: apiKey
+      in: header
+      name: X-Site-Ingest-Key
+
+  responses:
+    Unauthorized:
+      description: Authentication failed
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+
+  schemas:
+    Environment:
+      type: string
+      enum: [production, staging, preview, development]
+
+    MetricName:
+      type: string
+      enum: [lcp, inp, cls, fcp, ttfb]
+
+    MetricUnit:
+      type: string
+      enum: [ms, score]
+
+    Rating:
+      type: string
+      enum: [good, needs_improvement, poor]
+
+    DeviceClass:
+      type: string
+      enum: [mobile, desktop, tablet, unknown]
+
+    Site:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        defaultEnvironment:
+          $ref: "#/components/schemas/Environment"
+        status:
+          type: string
+          enum: [active, paused, archived]
+      required: [id, teamId, slug, name, defaultEnvironment, status]
+
+    ReleaseContext:
+      type: object
+      properties:
+        buildId:
+          type: string
+        releaseVersion:
+          type: string
+        gitRef:
+          type: string
+        gitCommitSha:
+          type: string
+        deployedAt:
+          type: string
+          format: date-time
+      required: [buildId]
+
+    WebVitalsEvent:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        metricName:
+          $ref: "#/components/schemas/MetricName"
+        metricUnit:
+          $ref: "#/components/schemas/MetricUnit"
+        metricValue:
+          type: number
+        deltaValue:
+          type:
+            - number
+            - "null"
+        rating:
+          $ref: "#/components/schemas/Rating"
+        url:
+          type: string
+          format: uri
+        path:
+          type: string
+        pageGroupKey:
+          type: string
+        deviceClass:
+          $ref: "#/components/schemas/DeviceClass"
+        navigationType:
+          type: string
+        effectiveConnectionType:
+          type:
+            - string
+            - "null"
+        browserName:
+          type:
+            - string
+            - "null"
+        osName:
+          type:
+            - string
+            - "null"
+        sessionId:
+          type:
+            - string
+            - "null"
+          format: uuid
+        pageViewId:
+          type:
+            - string
+            - "null"
+          format: uuid
+        release:
+          $ref: "#/components/schemas/ReleaseContext"
+        attribution:
+          type: object
+          additionalProperties: true
+        tags:
+          type: object
+          additionalProperties: true
+      required:
+        - eventId
+        - occurredAt
+        - metricName
+        - metricUnit
+        - metricValue
+        - rating
+        - url
+        - path
+        - pageGroupKey
+        - deviceClass
+        - release
+        - attribution
+        - tags
+
+    WebVitalsCollectRequest:
+      type: object
+      properties:
+        siteKey:
+          type: string
+        environment:
+          $ref: "#/components/schemas/Environment"
+        events:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/WebVitalsEvent"
+      required: [siteKey, environment, events]
+
+    DeploymentUpsertRequest:
+      type: object
+      properties:
+        siteKey:
+          type: string
+        environment:
+          $ref: "#/components/schemas/Environment"
+        buildId:
+          type: string
+        releaseVersion:
+          type:
+            - string
+            - "null"
+        gitRef:
+          type:
+            - string
+            - "null"
+        gitCommitSha:
+          type:
+            - string
+            - "null"
+        deployedAt:
+          type: string
+          format: date-time
+        actorName:
+          type:
+            - string
+            - "null"
+        ciSource:
+          type:
+            - string
+            - "null"
+        metadata:
+          type: object
+          additionalProperties: true
+      required: [siteKey, environment, buildId, deployedAt]
+
+    Deployment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        environment:
+          $ref: "#/components/schemas/Environment"
+        buildId:
+          type: string
+        releaseVersion:
+          type:
+            - string
+            - "null"
+        gitRef:
+          type:
+            - string
+            - "null"
+        gitCommitSha:
+          type:
+            - string
+            - "null"
+        deployedAt:
+          type: string
+          format: date-time
+      required: [id, siteId, environment, buildId, deployedAt]
+
+    SyntheticOpportunity:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        scoreImpact:
+          type:
+            - number
+            - "null"
+        displayValue:
+          type:
+            - string
+            - "null"
+      required: [id, title]
+
+    SyntheticRunRequest:
+      type: object
+      properties:
+        siteKey:
+          type: string
+        environment:
+          $ref: "#/components/schemas/Environment"
+        buildId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        pageUrl:
+          type: string
+          format: uri
+        pagePath:
+          type: string
+        pageGroupKey:
+          type: string
+        devicePreset:
+          $ref: "#/components/schemas/DeviceClass"
+        performanceScore:
+          type: number
+        accessibilityScore:
+          type:
+            - number
+            - "null"
+        bestPracticesScore:
+          type:
+            - number
+            - "null"
+        seoScore:
+          type:
+            - number
+            - "null"
+        fcpMs:
+          type:
+            - integer
+            - "null"
+        lcpMs:
+          type:
+            - integer
+            - "null"
+        tbtMs:
+          type:
+            - integer
+            - "null"
+        clsScore:
+          type:
+            - number
+            - "null"
+        speedIndexMs:
+          type:
+            - integer
+            - "null"
+        inpMs:
+          type:
+            - integer
+            - "null"
+        screenshotUrl:
+          type:
+            - string
+            - "null"
+          format: uri
+        traceUrl:
+          type:
+            - string
+            - "null"
+          format: uri
+        reportUrl:
+          type:
+            - string
+            - "null"
+          format: uri
+        opportunities:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyntheticOpportunity"
+        diagnostics:
+          type: object
+          additionalProperties: true
+      required:
+        - siteKey
+        - environment
+        - buildId
+        - occurredAt
+        - pageUrl
+        - pagePath
+        - pageGroupKey
+        - devicePreset
+        - performanceScore
+        - opportunities
+        - diagnostics
+
+    SyntheticRun:
+      allOf:
+        - $ref: "#/components/schemas/SyntheticRunRequest"
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            siteId:
+              type: string
+              format: uuid
+          required: [id, siteId]
+
+    RollupPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        metricName:
+          $ref: "#/components/schemas/MetricName"
+        deviceClass:
+          $ref: "#/components/schemas/DeviceClass"
+        pageGroupKey:
+          type:
+            - string
+            - "null"
+        p75Value:
+          type: number
+        p50Value:
+          type: number
+        sampleCount:
+          type: integer
+        poorCount:
+          type: integer
+      required: [date, metricName, deviceClass, p75Value, p50Value, sampleCount, poorCount]
+
+    SiteHealthSummary:
+      type: object
+      properties:
+        siteId:
+          type: string
+          format: uuid
+        siteSlug:
+          type: string
+        siteName:
+          type: string
+        failingMetrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetricName"
+        poorEventShare:
+          type: number
+      required: [siteId, siteSlug, siteName, failingMetrics, poorEventShare]
+
+    OverviewResponse:
+      type: object
+      properties:
+        health:
+          type: array
+          items:
+            $ref: "#/components/schemas/SiteHealthSummary"
+        trends:
+          type: array
+          items:
+            $ref: "#/components/schemas/RollupPoint"
+      required: [health, trends]
+
+    SiteMetricsResponse:
+      type: object
+      properties:
+        site:
+          $ref: "#/components/schemas/Site"
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/RollupPoint"
+      required: [site, metrics]
+
+    DeploymentCompareMetric:
+      type: object
+      properties:
+        metricName:
+          $ref: "#/components/schemas/MetricName"
+        deviceClass:
+          $ref: "#/components/schemas/DeviceClass"
+        pageGroupKey:
+          type:
+            - string
+            - "null"
+        baselineP75:
+          type: number
+        currentP75:
+          type: number
+        delta:
+          type: number
+        baselineSampleCount:
+          type: integer
+        currentSampleCount:
+          type: integer
+      required:
+        - metricName
+        - deviceClass
+        - baselineP75
+        - currentP75
+        - delta
+        - baselineSampleCount
+        - currentSampleCount
+
+    DeploymentCompareResponse:
+      type: object
+      properties:
+        currentDeployment:
+          $ref: "#/components/schemas/Deployment"
+        baselineDeployment:
+          $ref: "#/components/schemas/Deployment"
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentCompareMetric"
+      required: [currentDeployment, baselineDeployment, metrics]
