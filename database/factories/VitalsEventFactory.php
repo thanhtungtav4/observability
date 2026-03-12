@@ -21,6 +21,7 @@ class VitalsEventFactory extends Factory
     public function definition(): array
     {
         return [
+            'source_event_id' => fake()->uuid(),
             'site_id' => Site::factory(),
             'deployment_id' => Deployment::factory(),
             'page_group_id' => PageGroup::factory(),
@@ -50,12 +51,19 @@ class VitalsEventFactory extends Factory
             'downlink_mbps' => 12.5,
             'session_id' => fake()->uuid(),
             'page_view_id' => fake()->uuid(),
+            'correlation_id' => fake()->uuid(),
+            'trace_id' => fake()->uuid(),
             'visitor_hash' => fake()->sha1(),
             'attribution' => [
                 'lcpElement' => 'img.hero',
             ],
             'tags' => [
                 'countryCode' => 'VN',
+            ],
+            'context' => [
+                'collectorVersion' => '1.1.0',
+                'hydrationPhase' => 'after-hydration',
+                'routeTransitionType' => 'document',
             ],
         ];
     }

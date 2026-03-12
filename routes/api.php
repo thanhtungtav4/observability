@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\CollectWebVitalsController;
 use App\Http\Controllers\Api\V1\CompareDeploymentsController;
 use App\Http\Controllers\Api\V1\GetOverviewController;
+use App\Http\Controllers\Api\V1\GetSiteCausesController;
 use App\Http\Controllers\Api\V1\GetSiteMetricsController;
 use App\Http\Controllers\Api\V1\ListSitesController;
 use App\Http\Controllers\Api\V1\StoreSyntheticRunController;
@@ -28,6 +29,9 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('sites/{siteId}/metrics', GetSiteMetricsController::class)
             ->name('api.v1.sites.metrics');
+
+        Route::get('sites/{siteId}/causes', GetSiteCausesController::class)
+            ->name('api.v1.sites.causes');
 
         Route::get('sites/{siteId}/deployments/compare', CompareDeploymentsController::class)
             ->name('api.v1.sites.deployments.compare');

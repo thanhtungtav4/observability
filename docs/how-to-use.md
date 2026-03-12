@@ -80,6 +80,7 @@ Internal read APIs also require the bearer token:
 - `GET /api/v1/sites`
 - `GET /api/v1/dashboard/overview`
 - `GET /api/v1/sites/{siteId}/metrics`
+- `GET /api/v1/sites/{siteId}/causes`
 - `GET /api/v1/sites/{siteId}/deployments/compare`
 
 The web dashboard gives the same read model through:
@@ -98,3 +99,4 @@ For a fresh local walkthrough:
 4. Open `/login`
 5. Sign in
 6. Inspect overview, site detail, and compare views
+7. On site detail, use the `Likely causes` section to review phase breakdown, hot resources, long tasks, and JS errors

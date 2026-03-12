@@ -14,6 +14,7 @@
 
             <div class="badge-row">
                 <span class="badge cool">{{ $site->slug }}</span>
+                <span class="badge">{{ ucfirst($filters['environment']) }}</span>
                 <span class="badge">{{ ucfirst($filters['deviceClass']) }}</span>
                 @if ($filters['metric'])
                     <span class="badge alert">{{ strtoupper($filters['metric']) }}</span>
@@ -32,6 +33,15 @@
                 <div class="field">
                     <label for="to">To</label>
                     <input id="to" name="to" type="date" value="{{ $filters['to'] }}">
+                </div>
+
+                <div class="field">
+                    <label for="environment">Environment</label>
+                    <select id="environment" name="environment">
+                        @foreach (config('performance-hub.environments') as $environment)
+                            <option value="{{ $environment }}" @selected($filters['environment'] === $environment)>{{ ucfirst($environment) }}</option>
+                        @endforeach
+                    </select>
                 </div>
 
                 <div class="field">
@@ -88,6 +98,227 @@
                 <strong>{{ $latestSyntheticRun ? number_format((float) $latestSyntheticRun->performance_score, 1) : '—' }}</strong>
             </article>
         </div>
+    </section>
+
+    <section class="section">
+        <div class="section-heading">
+            <div>
+                <h2>Likely causes</h2>
+                <p>Raw evidence stitched to the selected filter window so the dashboard can point to what is probably driving the regression.</p>
+            </div>
+        </div>
+
+        @if (($causeSignals['summary']['eventCount'] ?? 0) === 0)
+            <div class="empty-state">
+                <h3 style="margin: 0 0 8px;">No raw evidence for this focus</h3>
+                <p class="muted" style="margin: 0;">Send richer collector payloads with resources, long tasks, and errors to start seeing likely-cause breakdowns.</p>
+            </div>
+        @else
+            <div class="stats-grid">
+                <article class="stat-card">
+                    <span class="muted">Field events in focus</span>
+                    <strong>{{ number_format($causeSignals['summary']['eventCount']) }}</strong>
+                </article>
+
+                <article class="stat-card">
+                    <span class="muted">Linked resources</span>
+                    <strong>{{ number_format($causeSignals['summary']['resourceCount']) }}</strong>
+                </article>
+
+                <article class="stat-card">
+                    <span class="muted">Long tasks</span>
+                    <strong>{{ number_format($causeSignals['summary']['longTaskCount']) }}</strong>
+                </article>
+
+                <article class="stat-card">
+                    <span class="muted">JS errors</span>
+                    <strong>{{ number_format($causeSignals['summary']['errorCount']) }}</strong>
+                </article>
+
+                <article class="stat-card">
+                    <span class="muted">Lab hints</span>
+                    <strong>{{ number_format($causeSignals['summary']['syntheticOpportunityCount']) }}</strong>
+                </article>
+            </div>
+
+            @if (count($causeSignals['phaseBreakdown']) > 0 || count($causeSignals['layoutShiftHotspots']) > 0 || count($causeSignals['labOpportunities']) > 0)
+                <div class="cards-grid" style="margin-top: 24px;">
+                    @foreach ($causeSignals['phaseBreakdown'] as $panel)
+                        <article class="site-card">
+                            <p class="eyebrow">{{ strtoupper($panel['metricName']) }}</p>
+                            <h3 style="margin: 0 0 12px;">{{ $panel['title'] }}</h3>
+                            <div style="display: grid; gap: 12px;">
+                                @foreach ($panel['rows'] as $row)
+                                    <div>
+                                        <div style="display: flex; justify-content: space-between; gap: 12px;">
+                                            <strong>{{ $row['phase'] }}</strong>
+                                            <span class="muted">{{ number_format($row['share'], 1) }}%</span>
+                                        </div>
+                                        <div class="muted" style="margin-top: 4px;">
+                                            {{ number_format($row['count']) }} samples · avg contribution {{ number_format($row['avgContribution'], 1) }}
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </article>
+                    @endforeach
+
+                    @if (count($causeSignals['layoutShiftHotspots']) > 0)
+                        <article class="site-card">
+                            <p class="eyebrow">CLS</p>
+                            <h3 style="margin: 0 0 12px;">Top shift targets</h3>
+                            <div style="display: grid; gap: 12px;">
+                                @foreach ($causeSignals['layoutShiftHotspots'] as $row)
+                                    <div>
+                                        <div style="display: flex; justify-content: space-between; gap: 12px;">
+                                            <strong>{{ $row['target'] }}</strong>
+                                            <span class="muted">{{ number_format($row['share'], 1) }}%</span>
+                                        </div>
+                                        <div class="muted" style="margin-top: 4px;">
+                                            {{ number_format($row['count']) }} samples · avg CLS {{ number_format($row['avgScore'], 3) }}
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </article>
+                    @endif
+
+                    @if (count($causeSignals['labOpportunities']) > 0)
+                        <article class="site-card">
+                            <p class="eyebrow">Synthetic</p>
+                            <h3 style="margin: 0 0 12px;">Recurring lab hints</h3>
+                            <div style="display: grid; gap: 12px;">
+                                @foreach ($causeSignals['labOpportunities'] as $opportunity)
+                                    <div style="display: flex; justify-content: space-between; gap: 12px;">
+                                        <strong>{{ $opportunity['title'] }}</strong>
+                                        <span class="badge">{{ number_format($opportunity['count']) }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </article>
+                    @endif
+                </div>
+            @endif
+
+            <div class="two-column" style="margin-top: 24px;">
+                <article class="table-card">
+                    <div class="section-heading" style="margin-bottom: 10px;">
+                        <div>
+                            <h2>Hot resources</h2>
+                            <p>Resources that show up repeatedly in the selected window.</p>
+                        </div>
+                    </div>
+
+                    @if (count($causeSignals['resourceHotspots']) === 0)
+                        <div class="empty-state">
+                            <p class="muted" style="margin: 0;">No resource timing evidence has been attached to these events yet.</p>
+                        </div>
+                    @else
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Resource</th>
+                                    <th>Type</th>
+                                    <th>Avg ms</th>
+                                    <th>Blocking</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($causeSignals['resourceHotspots'] as $row)
+                                    <tr>
+                                        <td>
+                                            <strong style="font-size: 15px; line-height: 1.2;">{{ $row['label'] }}</strong>
+                                            <div class="muted">{{ number_format($row['count']) }} hits · {{ number_format($row['avgTransferSize']) }} bytes</div>
+                                        </td>
+                                        <td>{{ strtoupper($row['resourceType']) }}</td>
+                                        <td>{{ number_format($row['avgDurationMs'], 1) }}</td>
+                                        <td>{{ number_format($row['renderBlockingCount']) }} / {{ number_format($row['lcpCandidateCount']) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </article>
+
+                <article class="table-card">
+                    <div class="section-heading" style="margin-bottom: 10px;">
+                        <div>
+                            <h2>Interaction hot spots</h2>
+                            <p>Main-thread work correlated with slow interaction windows.</p>
+                        </div>
+                    </div>
+
+                    @if (count($causeSignals['interactionHotspots']) === 0)
+                        <div class="empty-state">
+                            <p class="muted" style="margin: 0;">No long task evidence has been attached to these events yet.</p>
+                        </div>
+                    @else
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Script</th>
+                                    <th>Target</th>
+                                    <th>Avg task</th>
+                                    <th>Avg blocking</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($causeSignals['interactionHotspots'] as $row)
+                                    <tr>
+                                        <td>
+                                            <strong style="font-size: 15px; line-height: 1.2;">{{ $row['scriptHost'] }}</strong>
+                                            <div class="muted">{{ ucfirst($row['invokerType']) }} · {{ number_format($row['count']) }} samples</div>
+                                        </td>
+                                        <td>{{ $row['containerSelector'] }}</td>
+                                        <td>{{ number_format($row['avgDurationMs'], 1) }}</td>
+                                        <td>{{ number_format($row['avgBlockingDurationMs'], 1) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </article>
+            </div>
+
+            <article class="table-card" style="margin-top: 24px;">
+                <div class="section-heading" style="margin-bottom: 10px;">
+                    <div>
+                        <h2>Recent JavaScript faults</h2>
+                        <p>Errors linked to the same filtered event set so you can correlate slow sessions with breakage.</p>
+                    </div>
+                </div>
+
+                @if (count($causeSignals['errorHotspots']) === 0)
+                    <div class="empty-state">
+                        <p class="muted" style="margin: 0;">No JavaScript error evidence has been attached to these events yet.</p>
+                    </div>
+                @else
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Error</th>
+                                <th>Source</th>
+                                <th>Count</th>
+                                <th>Handled</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($causeSignals['errorHotspots'] as $row)
+                                <tr>
+                                    <td>
+                                        <strong style="font-size: 15px; line-height: 1.2;">{{ $row['name'] }}</strong>
+                                        <div class="muted">{{ $row['message'] }}</div>
+                                    </td>
+                                    <td>{{ $row['sourceHost'] }}</td>
+                                    <td>{{ number_format($row['count']) }}</td>
+                                    <td>{{ number_format($row['handledRate'], 1) }}%</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
+            </article>
+        @endif
     </section>
 
     <section class="section">

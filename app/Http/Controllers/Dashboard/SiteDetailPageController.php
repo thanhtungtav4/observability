@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Deployment;
 use App\Models\Site;
 use App\Models\SyntheticRun;
+use App\Services\PerformanceHub\GetSiteCauseSignalsAction;
 use App\Services\PerformanceHub\GetSiteMetricsAction;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
@@ -14,33 +15,42 @@ use Illuminate\View\View;
 
 class SiteDetailPageController extends Controller
 {
-    public function __invoke(Request $request, GetSiteMetricsAction $getSiteMetrics, string $siteId): View
-    {
+    public function __invoke(
+        Request $request,
+        GetSiteMetricsAction $getSiteMetrics,
+        GetSiteCauseSignalsAction $getSiteCauseSignals,
+        string $siteId,
+    ): View {
         $filters = [
             'from' => $request->string('from')->toString() ?: now()->subDays(13)->toDateString(),
             'to' => $request->string('to')->toString() ?: now()->toDateString(),
+            'environment' => $request->string('environment')->toString() ?: (string) config('performance-hub.environments.0'),
             'metric' => $request->string('metric')->toString() ?: null,
             'deviceClass' => $request->string('deviceClass')->toString() ?: 'mobile',
             'pageGroupKey' => $request->string('pageGroupKey')->toString() ?: null,
         ];
 
         $payload = $getSiteMetrics($siteId, $filters);
+        $causePayload = $getSiteCauseSignals($siteId, $filters);
         $site = $payload['site'];
         $metricSlices = collect($payload['metrics']);
         $deployments = Deployment::query()
             ->where('site_id', $site->id)
+            ->where('environment', $filters['environment'])
             ->orderByDesc('deployed_at')
             ->limit(8)
             ->get();
 
         $syntheticRuns = SyntheticRun::query()
             ->where('site_id', $site->id)
+            ->where('environment', $filters['environment'])
             ->orderByDesc('occurred_at')
             ->limit(6)
             ->get();
 
         return view('dashboard.site-detail', [
             'activeSiteId' => $site->id,
+            'causeSignals' => $causePayload['signals'],
             'deployments' => $deployments,
             'filters' => $filters,
             'latestSyntheticRun' => $syntheticRuns->first(),
@@ -107,7 +117,7 @@ class SiteDetailPageController extends Controller
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, Site>
+     * @return EloquentCollection<int, Site>
      */
     private function navigationSites(): EloquentCollection
     {

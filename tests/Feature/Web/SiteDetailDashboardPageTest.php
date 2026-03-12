@@ -43,7 +43,35 @@ it('renders the site detail dashboard', function () {
             'delta_value' => 2600,
             'rating' => 'poor',
             'device_class' => 'mobile',
+            'attribution' => [
+                'timeToFirstByte' => 420,
+                'resourceLoadDelay' => 160,
+                'resourceLoadDuration' => 1490,
+                'elementRenderDelay' => 260,
+            ],
         ]);
+
+    $event = VitalsEvent::query()->firstOrFail();
+
+    $event->resources()->create([
+        'resource_url' => 'https://assets.smile.example.com/images/hero.jpg',
+        'resource_host' => 'assets.smile.example.com',
+        'resource_path' => '/images/hero.jpg',
+        'resource_type' => 'image',
+        'duration_ms' => 1180,
+        'transfer_size' => 420000,
+        'render_blocking' => false,
+        'is_lcp_candidate' => true,
+    ]);
+
+    $event->javascriptErrors()->create([
+        'fingerprint' => sha1('hydrate-home'),
+        'name' => 'TypeError',
+        'message' => 'Cannot read properties of undefined during hydration',
+        'source_url' => 'https://app.smile.example.com/build/app.js',
+        'source_host' => 'app.smile.example.com',
+        'handled' => false,
+    ]);
 
     SyntheticRun::factory()
         ->for($site)
@@ -67,5 +95,9 @@ it('renders the site detail dashboard', function () {
         ->assertSuccessful()
         ->assertSeeText('Site Detail')
         ->assertSeeText('Smile Clinic')
+        ->assertSeeText('Likely causes')
+        ->assertSeeText('Hot resources')
+        ->assertSeeText('Recent JavaScript faults')
+        ->assertSeeText('assets.smile.example.com')
         ->assertSeeText('Latest synthetic evidence');
 });

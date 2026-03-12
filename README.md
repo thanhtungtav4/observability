@@ -105,7 +105,10 @@ Main endpoints:
 - `GET /api/v1/sites`
 - `GET /api/v1/dashboard/overview`
 - `GET /api/v1/sites/{siteId}/metrics`
+- `GET /api/v1/sites/{siteId}/causes`
 - `GET /api/v1/sites/{siteId}/deployments/compare`
+
+For the collector, prefer `fetch(..., { keepalive: true })` for real browser traffic. The ingest API uses `X-Site-Ingest-Key`, which means plain `navigator.sendBeacon()` is only suitable if you proxy or otherwise inject auth outside the browser call.
 
 ## Documentation
 

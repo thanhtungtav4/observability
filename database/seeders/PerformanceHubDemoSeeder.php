@@ -185,7 +185,7 @@ class PerformanceHubDemoSeeder extends Seeder
                                 $trendVariance,
                             );
 
-                            VitalsEvent::factory()
+                            $event = VitalsEvent::factory()
                                 ->for($site)
                                 ->for($activeDeployment['model'], 'deployment')
                                 ->for($pageGroup['model'], 'pageGroup')
@@ -216,6 +216,8 @@ class PerformanceHubDemoSeeder extends Seeder
                                     'downlink_mbps' => $deviceClass === 'desktop' ? 48.5 : 14.2,
                                     'session_id' => (string) Str::uuid(),
                                     'page_view_id' => (string) Str::uuid(),
+                                    'correlation_id' => (string) Str::uuid(),
+                                    'trace_id' => (string) Str::uuid(),
                                     'visitor_hash' => sha1($site->slug.'|'.$pageGroupKey.'|'.$deviceClass.'|'.$daysAgo.'|'.$sampleIndex),
                                     'attribution' => $this->attributionFor($metricName),
                                     'tags' => [
@@ -224,7 +226,15 @@ class PerformanceHubDemoSeeder extends Seeder
                                         'deviceClass' => $deviceClass,
                                         'seed' => 'demo',
                                     ],
+                                    'context' => [
+                                        'collectorVersion' => 'demo-seed-1',
+                                        'hydrationPhase' => $sampleIndex === 0 ? 'before-hydration' : 'after-hydration',
+                                        'routeTransitionType' => $sampleIndex === 0 ? 'document' : 'spa',
+                                        'apiRequestKeys' => ['search-api', 'availability-api'],
+                                    ],
                                 ]);
+
+                            $this->attachEvidenceFor($event, $metricName, $domain, $pageGroup['path'], $deviceClass, $sampleIndex);
                         }
                     }
                 }
@@ -364,13 +374,111 @@ class PerformanceHubDemoSeeder extends Seeder
     private function attributionFor(string $metricName): array
     {
         return match ($metricName) {
-            'lcp' => ['element' => 'img.hero-poster'],
-            'inp' => ['interactionTarget' => 'button[data-booking-cta]'],
-            'cls' => ['shiftSource' => '#promo-banner'],
+            'lcp' => [
+                'element' => 'img.hero-poster',
+                'timeToFirstByte' => 520,
+                'resourceLoadDelay' => 180,
+                'resourceLoadDuration' => 1440,
+                'elementRenderDelay' => 260,
+            ],
+            'inp' => [
+                'interactionTarget' => 'button[data-booking-cta]',
+                'inputDelay' => 46,
+                'processingDuration' => 188,
+                'presentationDelay' => 74,
+            ],
+            'cls' => [
+                'shiftSource' => '#promo-banner',
+                'largestShiftTarget' => '#promo-banner',
+            ],
             'fcp' => ['renderPath' => 'document'],
             'ttfb' => ['requestRoute' => 'edge-cache'],
             default => [],
         };
+    }
+
+    private function attachEvidenceFor(
+        VitalsEvent $event,
+        string $metricName,
+        string $domain,
+        string $pagePath,
+        string $deviceClass,
+        int $sampleIndex,
+    ): void {
+        $pageSlug = trim($pagePath, '/');
+        $pageSlug = $pageSlug === '' ? 'home' : str_replace('/', '-', $pageSlug);
+
+        if (in_array($metricName, ['lcp', 'fcp'], true)) {
+            $event->resources()->createMany([
+                [
+                    'resource_url' => 'https://assets.'.$domain.'/images/'.$pageSlug.'-hero.jpg',
+                    'resource_host' => 'assets.'.$domain,
+                    'resource_path' => '/images/'.$pageSlug.'-hero.jpg',
+                    'resource_type' => 'image',
+                    'initiator_type' => 'img',
+                    'duration_ms' => $deviceClass === 'desktop' ? 420 : 1180,
+                    'transfer_size' => $deviceClass === 'desktop' ? 420000 : 690000,
+                    'decoded_body_size' => $deviceClass === 'desktop' ? 880000 : 1180000,
+                    'cache_state' => $sampleIndex === 0 ? 'miss' : 'revalidated',
+                    'priority' => 'high',
+                    'render_blocking' => false,
+                    'is_lcp_candidate' => $metricName === 'lcp',
+                ],
+                [
+                    'resource_url' => 'https://app.'.$domain.'/build/app.css',
+                    'resource_host' => 'app.'.$domain,
+                    'resource_path' => '/build/app.css',
+                    'resource_type' => 'stylesheet',
+                    'initiator_type' => 'link',
+                    'duration_ms' => $deviceClass === 'desktop' ? 84 : 230,
+                    'transfer_size' => 92000,
+                    'decoded_body_size' => 160000,
+                    'cache_state' => $sampleIndex === 0 ? 'miss' : 'hit',
+                    'priority' => 'high',
+                    'render_blocking' => true,
+                    'is_lcp_candidate' => false,
+                ],
+            ]);
+        }
+
+        if ($metricName === 'inp') {
+            $event->longTasks()->createMany([
+                [
+                    'name' => 'script-evaluation',
+                    'script_url' => 'https://app.'.$domain.'/build/checkout.js',
+                    'script_host' => 'app.'.$domain,
+                    'invoker_type' => 'event-listener',
+                    'container_selector' => 'button[data-booking-cta]',
+                    'start_time_ms' => 1240 + ($sampleIndex * 40),
+                    'duration_ms' => $deviceClass === 'desktop' ? 180 : 460,
+                    'blocking_duration_ms' => $deviceClass === 'desktop' ? 92 : 280,
+                ],
+                [
+                    'name' => 'layout',
+                    'script_url' => 'https://app.'.$domain.'/build/forms.js',
+                    'script_host' => 'app.'.$domain,
+                    'invoker_type' => 'promise',
+                    'container_selector' => '#booking-form',
+                    'start_time_ms' => 1390 + ($sampleIndex * 50),
+                    'duration_ms' => $deviceClass === 'desktop' ? 124 : 310,
+                    'blocking_duration_ms' => $deviceClass === 'desktop' ? 48 : 170,
+                ],
+            ]);
+
+            if ($sampleIndex === 0) {
+                $event->javascriptErrors()->create([
+                    'fingerprint' => sha1('hydrate-mismatch|'.$pagePath),
+                    'name' => 'TypeError',
+                    'message' => 'Cannot read properties of undefined during hydration',
+                    'source_url' => 'https://app.'.$domain.'/build/checkout.js',
+                    'source_host' => 'app.'.$domain,
+                    'line_number' => 182,
+                    'column_number' => 24,
+                    'handled' => false,
+                    'stack' => "TypeError: Cannot read properties of undefined\n    at hydrateBookingCta (checkout.js:182:24)",
+                ]);
+            }
+        }
     }
 
     /**

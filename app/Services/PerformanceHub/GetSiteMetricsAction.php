@@ -19,6 +19,10 @@ class GetSiteMetricsAction
             ->where('site_id', $site->id)
             ->whereBetween('metric_day', [$filters['from'], $filters['to']])
             ->when(
+                $filters['environment'] ?? null,
+                fn ($query, string $environment) => $query->where('environment', $environment)
+            )
+            ->when(
                 $filters['metric'] ?? null,
                 fn ($query, string $metric) => $query->where('metric_name', $metric)
             )
@@ -35,6 +39,7 @@ class GetSiteMetricsAction
             ->get()
             ->map(fn (DailyMetricRollup $rollup): array => [
                 'date' => $rollup->metric_day->toDateString(),
+                'environment' => $rollup->environment,
                 'metricName' => $rollup->metric_name,
                 'deviceClass' => $rollup->device_class,
                 'pageGroupKey' => $rollup->page_group_key,
