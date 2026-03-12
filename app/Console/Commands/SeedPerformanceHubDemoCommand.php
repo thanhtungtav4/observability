@@ -12,6 +12,7 @@ use App\Models\VitalsEvent;
 use App\Services\PerformanceHub\RefreshRollupsAction;
 use Database\Seeders\PerformanceHubDemoSeeder;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class SeedPerformanceHubDemoCommand extends Command
 {
@@ -20,7 +21,9 @@ class SeedPerformanceHubDemoCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'performance-hub:seed-demo {--fresh : Replace any existing performance hub data before seeding the demo workspace}';
+    protected $signature = 'performance-hub:seed-demo
+        {--fresh : Replace any existing performance hub data before seeding the demo workspace}
+        {--force : Required outside local/testing when replacing existing Performance Hub data}';
 
     /**
      * The console command description.
@@ -40,20 +43,26 @@ class SeedPerformanceHubDemoCommand extends Command
             return self::FAILURE;
         }
 
-        if ($this->option('fresh')) {
-            $this->purgePerformanceHubData();
-            $this->components->info('Cleared existing Performance Hub records.');
+        if (
+            $this->option('fresh')
+            && ! app()->environment(['local', 'testing'])
+            && ! $this->option('force')
+        ) {
+            $this->components->error('Fresh demo seeding outside local/testing requires --force.');
+
+            return self::FAILURE;
         }
 
-        $seedExitCode = $this->callSilent('db:seed', [
-            '--class' => PerformanceHubDemoSeeder::class,
-            '--no-interaction' => true,
-        ]);
+        DB::transaction(function (): void {
+            if ($this->option('fresh')) {
+                $this->purgePerformanceHubData();
+            }
 
-        if ($seedExitCode !== self::SUCCESS) {
-            $this->components->error('Demo seed failed before rollups could be refreshed.');
+            app(PerformanceHubDemoSeeder::class)->run();
+        });
 
-            return $seedExitCode;
+        if ($this->option('fresh')) {
+            $this->components->info('Cleared existing Performance Hub records.');
         }
 
         $rollupCounts = $refreshRollups();

@@ -80,6 +80,24 @@
                 font-family: "IBM Plex Mono", monospace;
             }
 
+            .sidebar-account {
+                display: grid;
+                gap: 10px;
+                margin-top: 26px;
+                padding-top: 20px;
+                border-top: 1px solid rgba(26, 27, 31, 0.08);
+            }
+
+            .sidebar-account strong {
+                display: block;
+                font-size: 15px;
+            }
+
+            .sidebar-account span {
+                color: var(--muted);
+                font-size: 12px;
+            }
+
             .sidebar-note {
                 margin: 16px 0 28px;
                 color: var(--muted);
@@ -454,6 +472,18 @@
                             <span>{{ $navSite->slug }}</span>
                         </a>
                     @endforeach
+                </div>
+
+                <div class="sidebar-account">
+                    <div>
+                        <strong>{{ auth()->user()?->name }}</strong>
+                        <span>{{ auth()->user()?->email }}</span>
+                    </div>
+
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button class="button secondary" style="width: 100%;" type="submit">Log Out</button>
+                    </form>
                 </div>
             </aside>
 

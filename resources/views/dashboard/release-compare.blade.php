@@ -109,6 +109,9 @@
                         {{ $summary['largestRegression']['pageGroupKey'] }} · {{ ucfirst($summary['largestRegression']['deviceClass']) }}
                     </p>
                     <strong class="delta-up" style="font-size: 34px;">+{{ number_format($summary['largestRegression']['delta'], strtolower($summary['largestRegression']['metricName']) === 'cls' ? 3 : 0) }}</strong>
+                @else
+                    <h3 style="margin: 0; font-size: 28px;">No regressions yet</h3>
+                    <p class="muted" style="margin: 10px 0 0;">The current release is not worse than baseline for any compared slice.</p>
                 @endif
             </article>
 
@@ -122,6 +125,9 @@
                     <strong class="{{ $summary['largestImprovement']['delta'] < 0 ? 'delta-down' : 'delta-flat' }}" style="font-size: 34px;">
                         {{ $summary['largestImprovement']['delta'] > 0 ? '+' : '' }}{{ number_format($summary['largestImprovement']['delta'], strtolower($summary['largestImprovement']['metricName']) === 'cls' ? 3 : 0) }}
                     </strong>
+                @else
+                    <h3 style="margin: 0; font-size: 28px;">No improvements yet</h3>
+                    <p class="muted" style="margin: 10px 0 0;">Every compared slice is flat or regressed against the selected baseline.</p>
                 @endif
             </article>
         </section>

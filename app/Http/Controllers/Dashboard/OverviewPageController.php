@@ -8,9 +8,9 @@ use App\Models\Site;
 use App\Models\SyntheticRun;
 use App\Models\VitalsEvent;
 use App\Services\PerformanceHub\GetOverviewAction;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\View\View;
 
 class OverviewPageController extends Controller
@@ -41,9 +41,11 @@ class OverviewPageController extends Controller
                     ->filter(fn (array $site): bool => count($site['failingMetrics']) > 0)
                     ->count(),
                 'eventCount' => VitalsEvent::query()
+                    ->where('environment', $filters['environment'])
                     ->whereBetween('occurred_at', [$windowStart, $windowEnd])
                     ->count(),
                 'syntheticCount' => SyntheticRun::query()
+                    ->where('environment', $filters['environment'])
                     ->whereBetween('occurred_at', [$windowStart, $windowEnd])
                     ->count(),
             ],
@@ -80,7 +82,7 @@ class OverviewPageController extends Controller
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, Site>
+     * @return EloquentCollection<int, Site>
      */
     private function navigationSites(): EloquentCollection
     {

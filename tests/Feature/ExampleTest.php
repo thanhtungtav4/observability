@@ -1,7 +1,11 @@
 <?php
 
+use App\Models\User;
+
 it('renders demo seed guidance on an empty dashboard', function () {
-    $response = $this->get('/');
+    $response = $this
+        ->actingAs(User::factory()->admin()->create())
+        ->get('/');
 
     $response
         ->assertSuccessful()

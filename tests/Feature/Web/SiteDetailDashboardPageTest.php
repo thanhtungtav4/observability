@@ -4,9 +4,12 @@ use App\Models\Deployment;
 use App\Models\PageGroup;
 use App\Models\Site;
 use App\Models\SyntheticRun;
+use App\Models\User;
 use App\Models\VitalsEvent;
 
 it('renders the site detail dashboard', function () {
+    $admin = User::factory()->admin()->create();
+
     $site = Site::factory()->create([
         'slug' => 'smile-clinic',
         'name' => 'Smile Clinic',
@@ -56,7 +59,9 @@ it('renders the site detail dashboard', function () {
 
     $this->artisan('performance-hub:refresh-rollups')->assertExitCode(0);
 
-    $response = $this->get("/sites/{$site->id}?from=2026-03-10&to=2026-03-12");
+    $response = $this
+        ->actingAs($admin)
+        ->get("/sites/{$site->id}?from=2026-03-10&to=2026-03-12");
 
     $response
         ->assertSuccessful()

@@ -27,10 +27,11 @@ The MVP is built around 3 layers:
 
 Core artifacts in this repository:
 
-- [docs/mvp-spec.md](/Volumes/Manager Data/Tool/performance monitor/docs/mvp-spec.md)
-- [docs/collector-payload.md](/Volumes/Manager Data/Tool/performance monitor/docs/collector-payload.md)
-- [docs/openapi.yaml](/Volumes/Manager Data/Tool/performance monitor/docs/openapi.yaml)
-- [database/schema.sql](/Volumes/Manager Data/Tool/performance monitor/database/schema.sql)
+- [MVP spec](./docs/mvp-spec.md)
+- [Collector payload](./docs/collector-payload.md)
+- [OpenAPI contract](./docs/openapi.yaml)
+- [Database schema](./database/schema.sql)
+- [Usage guide](./how-to-use.md)
 
 ## Suggested Stack
 
@@ -47,3 +48,10 @@ Core artifacts in this repository:
 3. Materialize daily and per-deployment p75 rollups.
 4. Add dashboard views for site, page group, device, and release comparison.
 5. Add nightly Lighthouse runs for critical URLs and basic threshold alerts.
+
+## Current Repo Notes
+
+- The current implementation uses a Laravel 12 monolith with server-rendered Blade dashboards.
+- Web dashboard routes are admin-only and require a session login at `/login`.
+- Local demo data can be created with `php artisan performance-hub:seed-demo --fresh`.
+- An admin can be created with `php artisan performance-hub:create-admin`.

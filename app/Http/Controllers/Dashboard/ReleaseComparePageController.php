@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Deployment;
 use App\Models\Site;
 use App\Services\PerformanceHub\CompareDeploymentsAction;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -61,8 +62,14 @@ class ReleaseComparePageController extends Controller
         }
 
         $metrics = collect($comparison['metrics']);
-        $largestRegression = $metrics->sortByDesc('delta')->first();
-        $largestImprovement = $metrics->sortBy('delta')->first();
+        $largestRegression = $metrics
+            ->filter(fn (array $metric): bool => $metric['delta'] > 0)
+            ->sortByDesc('delta')
+            ->first();
+        $largestImprovement = $metrics
+            ->filter(fn (array $metric): bool => $metric['delta'] < 0)
+            ->sortBy('delta')
+            ->first();
 
         return [
             'regressions' => $metrics->filter(fn (array $metric): bool => $metric['delta'] > 0)->count(),
@@ -73,7 +80,7 @@ class ReleaseComparePageController extends Controller
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, Site>
+     * @return Collection<int, Site>
      */
     private function navigationSites(): EloquentCollection
     {

@@ -3,9 +3,12 @@
 use App\Models\Deployment;
 use App\Models\PageGroup;
 use App\Models\Site;
+use App\Models\User;
 use App\Models\VitalsEvent;
 
 it('renders the release compare dashboard', function () {
+    $admin = User::factory()->admin()->create();
+
     $site = Site::factory()->create([
         'slug' => 'smile-clinic',
         'name' => 'Smile Clinic',
@@ -41,7 +44,7 @@ it('renders the release compare dashboard', function () {
                 'page_group_id' => $pageGroup->id,
                 'page_group_key' => 'home',
                 'environment' => 'production',
-                'occurred_at' => "2026-03-11 0".($offset + 1).":00:00",
+                'occurred_at' => '2026-03-11 0'.($offset + 1).':00:00',
                 'build_id' => $baselineDeployment->build_id,
                 'metric_name' => 'lcp',
                 'metric_unit' => 'ms',
@@ -60,7 +63,7 @@ it('renders the release compare dashboard', function () {
                 'page_group_id' => $pageGroup->id,
                 'page_group_key' => 'home',
                 'environment' => 'production',
-                'occurred_at' => "2026-03-12 0".($offset + 1).":00:00",
+                'occurred_at' => '2026-03-12 0'.($offset + 1).':00:00',
                 'build_id' => $currentDeployment->build_id,
                 'metric_name' => 'lcp',
                 'metric_unit' => 'ms',
@@ -73,12 +76,15 @@ it('renders the release compare dashboard', function () {
 
     $this->artisan('performance-hub:refresh-rollups')->assertExitCode(0);
 
-    $response = $this->get("/sites/{$site->id}/compare?currentDeploymentId={$currentDeployment->id}");
+    $response = $this
+        ->actingAs($admin)
+        ->get("/sites/{$site->id}/compare?currentDeploymentId={$currentDeployment->id}");
 
     $response
         ->assertSuccessful()
         ->assertSeeText('Release Compare')
         ->assertSeeText('Slice-by-slice delta table')
         ->assertSeeText('2026.03.12-1')
-        ->assertSeeText('2026.03.11-1');
+        ->assertSeeText('2026.03.11-1')
+        ->assertSeeText('No improvements yet');
 });
